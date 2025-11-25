@@ -1,1 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raiku | Why Deterministic Execution Matters</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <!-- GSAP for Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: #ff00ff;
+            --neon-blue: #00ffff;
+            --neon-green: #0aff0a;
+            --bg-dark: #050505;
+            --grid-color: rgba(0, 255, 255, 0.1);
+            --crt-scanline: rgba(18, 16, 16, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #fff;
+            font-family: 'Share Tech Mono', monospace;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        h1, h2, h3, .pixel-font {
+            font-family: 'Press Start 2P', cursive;
+            text-transform: uppercase;
+        }
+
+        /* --- CRT Effect --- */
+        .crt-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        /* --- Retro Grid Background --- */
+        .retro-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(500px) rotateX(60deg) translateY(100px) scale(2);
+            opacity: 0.4;
+            z-index: -1;
+            animation: gridMove 20s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 40px; }
+        }
+
+        /* --- Layout Utilities --- */
+        section {
+            min-height: 100vh;
+            padding: 4rem 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .text-neon-pink { color: var(--neon-pink); text-shadow: 0 0 10px var(--neon-pink); }
+        .text-neon-blue { color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue); }
+        .text-neon-green { color: var(--neon-green); text-shadow: 0 0 10px var(--neon-green); }
+
+        .btn {
+            background: transparent;
+            border: 2px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 1rem 2rem;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 4px 4px 0 var(--neon-pink);
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+
+        .btn:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 var(--neon-pink);
+            background: rgba(0, 255, 255, 0.1);
+        }
+
+        .btn.active {
+            background: var(--neon-blue);
+            color: #000;
+        }
+
+        /* --- Specific Sections --- */
+
+        /* Intro */
+        .intro-title {
+            font-size: clamp(1.5rem, 5vw, 3rem);
+            line-height: 1.5;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .loading-bar-container {
+            width: 300px;
+            height: 20px;
+            border: 2px solid var(--neon-green);
+            padding: 2px;
+            margin-top: 2rem;
+        }
+
+        .loading-bar {
+            width: 0%;
+            height: 100%;
+            background-color: var(--neon-green);
+        }
+
+        /* Analogies */
+        .analogy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            width: 100%;
+            margin-top: 3rem;
+        }
+
+        .card {
+            border: 2px solid var(--neon-pink);
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.7);
+            position: relative;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: -5px; left: -5px; right: -5px; bottom: -5px;
+            border: 1px dashed var(--neon-pink);
+            z-index: -1;
+            opacity: 0.5;
+        }
+
+        /* Benefits */
+        .benefits-list {
+            list-style: none;
+            text-align: left;
+        }
+
+        .benefits-list li {
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: flex-start;
+            font-size: 1.1rem;
+        }
+
+        .pixel-icon {
+            font-size: 1.5rem;
+            margin-right: 1.5rem;
+            min-width: 40px;
+        }
+
+        /* How it Works */
+        .raiku-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+            max-width: 600px;
+            margin: 2rem auto;
+        }
+
+        .diagram-step {
+            border: 2px solid var(--neon-blue);
+            padding: 1.5rem;
+            text-align: center;
+            background: #000;
+            position: relative;
+        }
+        
+        .arrow-down {
+            font-size: 2rem;
+            text-align: center;
+            color: var(--neon-green);
+        }
+
+        /* --- DEMOS --- */
+        
+        /* Demo 1: Spam Sim */
+        .demo-container {
+            border: 4px solid var(--neon-green);
+            width: 100%;
+            height: 300px;
+            background: #111;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        
+        .sim-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        /* Demo 2: Ticket */
+        .ticket-machine {
+            background: #222;
+            border: 4px solid #555;
+            padding: 2rem;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            border-radius: 10px;
+        }
+
+        .ticket {
+            background: #fff;
+            color: #000;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-family: 'Share Tech Mono';
+            border-left: 5px dashed #000;
+            display: none;
+            animation: printTicket 0.5s ease-out;
+        }
+
+        @keyframes printTicket {
+            from { height: 0; opacity: 0; transform: translateY(-20px); }
+            to { height: auto; opacity: 1; transform: translateY(0); }
+        }
+
+        /* Demo 3: MEV Path */
+        .path-container {
+            width: 100%;
+            height: 200px;
+            position: relative;
+            background: #111;
+            border: 1px solid #333;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .node {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            border: 2px solid #fff;
+            position: absolute;
+            background: #000;
+            z-index: 2;
+        }
+
+        .user-node { left: 5%; border-color: var(--neon-blue); }
+        .val-node { right: 5%; border-color: var(--neon-green); }
+
+        .mev-packet {
+            width: 15px; height: 15px; background: red; position: absolute; left: 8%; border-radius: 50%;
+            display: none;
+        }
+        
+        .raiku-packet {
+            width: 15px; height: 15px; background: var(--neon-blue); position: absolute; left: 8%;
+            display: none; box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .stats-panel {
+            font-size: 0.8rem;
+            margin-top: 1rem;
+            color: #aaa;
+        }
+
+        /* Footer */
+        footer {
+            padding: 4rem;
+            text-align: center;
+            border-top: 2px solid var(--neon-blue);
+            background: #000;
+        }
+
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+    <div class="retro-grid"></div>
+
+    <!-- Section 1: Intro -->
+    <section id="intro">
+        <div class="container" style="text-align: center;">
+            <h3 class="text-neon-pink" style="margin-bottom: 1rem;">SYSTEM_BOOT_SEQUENCE_INIT...</h3>
+            <h1 class="intro-title text-neon-blue">WELCOME TO <br>RAIKU</h1>
+            <p style="font-size: 1.2rem;">Where Solana becomes predictable.</p>
+            <p style="font-size: 1.2rem;">Determinism is the future of blockspace.</p>
+
+            <div class="loading-bar-container" style="margin: 2rem auto;">
+                <div class="loading-bar"></div>
+            </div>
+            <p id="load-text" style="font-size: 0.8rem; margin-top: 0.5rem;">LOADING BLOCKSPACE...</p>
+        </div>
+        
+        <div style="position: absolute; bottom: 2rem; animation: bounce 2s infinite;">
+            V SCROLL_DOWN V
+        </div>
+    </section>
+
+    <!-- Section 2: Definition -->
+    <section id="definition">
+        <div class="container">
+            <h2 class="text-neon-green" style="margin-bottom: 2rem; text-align: center;">WHAT IS DETERMINISTIC EXECUTION?</h2>
+            
+            <p style="font-size: 1.2rem; text-align: center; max-width: 800px; margin: 0 auto;">
+                Deterministic execution means your transaction runs <span class="text-neon-blue">exactly when and how you expect</span>. 
+                <br><br>
+                No randomness. No guessing. No spam roulette.
+            </p>
+
+            <div class="analogy-grid">
+                <div class="card">
+                    <h3 class="text-neon-pink" style="margin-bottom: 1rem;">The Train Ticket</h3>
+                    <p><strong>Deterministic:</strong> You buy a ticket for the 5:00 PM train. You have a reserved seat. It leaves at 5:00 PM.</p>
+                    <br>
+                    <p style="color: #777;"><strong>Non-Deterministic:</strong> Sprinting into the station hoping to squeeze onto a crowded car.</p>
+                </div>
+                <div class="card">
+                    <h3 class="text-neon-pink" style="margin-bottom: 1rem;">The Restaurant</h3>
+                    <p><strong>Deterministic:</strong> A reservation at 8:00 PM. Your table is waiting.</p>
+                    <br>
+                    <p style="color: #777;"><strong>Non-Deterministic:</strong> Standing in line outside hoping someone pays their check soon.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Why Superior -->
+    <section id="superior">
+        <div class="container">
+            <h2 class="text-neon-pink" style="margin-bottom: 3rem; text-align: center;">WHY DETERMINISM IS SUPERIOR</h2>
+            
+            <ul class="benefits-list">
+                <li>
+                    <span class="pixel-icon">💰</span>
+                    <div>
+                        <h4 class="text-neon-blue">Predictable Costs</h4>
+                        <p>No bidding wars or spam flooding just to get included.</p>
+                    </div>
+                </li>
+                <li>
+                    <span class="pixel-icon">⏱️</span>
+                    <div>
+                        <h4 class="text-neon-blue">Guaranteed Timing</h4>
+                        <p>You know exactly when a transaction will land on-chain.</p>
+                    </div>
+                </li>
+                <li>
+                    <span class="pixel-icon">🛡️</span>
+                    <div>
+                        <h4 class="text-neon-blue">Reliability Under Load</h4>
+                        <p>When Solana hits congestion, deterministic lanes keep moving.</p>
+                    </div>
+                </li>
+                <li>
+                    <span class="pixel-icon">🤖</span>
+                    <div>
+                        <h4 class="text-neon-blue">Better UX for Agents</h4>
+                        <p>Bots, humans, and AI agents can rely on consistent timing logic.</p>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Section 4: Raiku Solution -->
+    <section id="how-raiku-works">
+        <div class="container">
+            <h2 class="text-neon-green" style="margin-bottom: 2rem; text-align: center;">HOW RAIKU ACHIEVES DETERMINISM</h2>
+            
+            <div class="raiku-diagram">
+                <div class="diagram-step step-1">
+                    <h4 class="text-neon-pink">1. Reservation System</h4>
+                    <p>User reserves a "seat" in a future block. A receipt is issued.</p>
+                </div>
+                <div class="arrow-down">↓</div>
+                <div class="diagram-step step-2">
+                    <h4 class="text-neon-blue">2. Coordinated Scheduling</h4>
+                    <p>Raiku coordinates with validators to honor the reservation.</p>
+                </div>
+                <div class="arrow-down">↓</div>
+                <div class="diagram-step step-3">
+                    <h4 class="text-neon-green">3. Guaranteed Inclusion</h4>
+                    <p>Transaction lands in the exact block slot promised.</p>
+                </div>
+            </div>
+            <p style="text-align: center; margin-top: 2rem; font-size: 0.9rem; color: #aaa;">*No Consensus Changes. Solana remains Solana.</p>
+        </div>
+    </section>
+
+    <!-- Section 5: Interactive Demos -->
+    <section id="demos">
+        <div class="container">
+            <h2 class="text-neon-pink" style="margin-bottom: 3rem; text-align: center;">INTERACTIVE SIMULATIONS</h2>
+
+            <!-- Demo 1 -->
+            <div style="margin-bottom: 4rem;">
+                <h3 class="text-neon-blue" style="margin-bottom: 1rem;">> SIM 01: SPAM VS DETERMINISM</h3>
+                <div class="controls">
+                    <button class="btn" id="btn-spam">MODE: SPAM CHAOS</button>
+                    <button class="btn" id="btn-raiku">MODE: RAIKU (DETERMINISTIC)</button>
+                </div>
+                <div class="demo-container" id="spam-sim">
+                    <!-- JS renders here -->
+                </div>
+                <div id="sim-stats" class="stats-panel">PACKET LOSS: 0% | STRESS: LOW</div>
+            </div>
+
+            <!-- Demo 2 -->
+            <div style="margin-bottom: 4rem;">
+                <h3 class="text-neon-blue" style="margin-bottom: 1rem;">> SIM 02: BLOCKSPACE TICKET</h3>
+                <div style="display: flex; justify-content: center;">
+                    <div class="ticket-machine">
+                        <p>SELECT BLOCK SLOT:</p>
+                        <select id="slot-select" style="background: #000; color: var(--neon-green); border: 1px solid var(--neon-green); padding: 5px; margin: 10px; font-family: inherit;">
+                            <option>Block #245001</option>
+                            <option>Block #245002</option>
+                            <option>Block #245003</option>
+                        </select>
+                        <br>
+                        <button class="btn" id="btn-ticket">PRINT TICKET</button>
+                        <div id="ticket-out" class="ticket">
+                            <h4>RAIKU RESERVATION</h4>
+                            <p>----------------</p>
+                            <p>SLOT: <span id="ticket-slot"></span></p>
+                            <p>STATUS: GUARANTEED</p>
+                            <p>----------------</p>
+                            <p class="text-neon-blue">EXECUTION CONFIRMED</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Demo 3 -->
+            <div>
+                <h3 class="text-neon-blue" style="margin-bottom: 1rem;">> SIM 03: MEV CHAOS vs DIRECT PATH</h3>
+                <p style="text-align: center; font-size: 0.8rem; margin-bottom: 1rem;">Drag slider to compare execution paths</p>
+                
+                <div class="controls">
+                    <button class="btn" onclick="runMevSim('mev')">RUN MEV PATH</button>
+                    <button class="btn" onclick="runMevSim('raiku')">RUN RAIKU PATH</button>
+                </div>
+
+                <div class="path-container" id="path-viz">
+                    <div class="node user-node">USER</div>
+                    
+                    <!-- Middle Nodes -->
+                    <div class="node" style="left: 30%; top: 20%; border-color: red;" id="node-searcher">SEARCH</div>
+                    <div class="node" style="left: 50%; top: 60%; border-color: red;" id="node-builder">BUILD</div>
+                    <div class="node" style="left: 40%; top: 40%; border-color: var(--neon-blue); opacity: 0;" id="node-raiku">RAIKU</div>
+
+                    <div class="node val-node">VAL</div>
+
+                    <!-- Packets -->
+                    <div class="mev-packet" id="pkg-mev"></div>
+                    <div class="raiku-packet" id="pkg-raiku"></div>
+                </div>
+                <div id="path-status" class="stats-panel" style="text-align: center;">STATUS: IDLE</div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Section 6: Why Solana Needs This -->
+    <section id="why-solana">
+        <div class="container" style="text-align: center;">
+            <h2 class="text-neon-green" style="margin-bottom: 2rem;">WHY SOLANA NEEDS THIS</h2>
+            <div style="text-align: left; max-width: 600px; margin: 0 auto; border: 2px solid #333; padding: 2rem; background: rgba(0,0,0,0.5);">
+                <p style="margin-bottom: 1rem;">> Solana has elite throughput but low predictability under load.</p>
+                <p style="margin-bottom: 1rem;">> Institutions demand guaranteed execution.</p>
+                <p style="margin-bottom: 1rem;">> HFT, AI agents, and trading engines need sub-second timing guarantees.</p>
+                <p>> Validators benefit from new non-MEV revenue.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 7: CTA -->
+    <footer id="cta">
+        <div class="container">
+            <h2 class="text-neon-blue" style="margin-bottom: 2rem;">INITIALIZE YOUR FUTURE</h2>
+            
+            <div style="font-size: 1.5rem; margin-bottom: 2rem;">
+                <a href="https://twitter.com/raikucom" target="_blank" style="color: #fff; text-decoration: none; margin: 0 1rem;" class="btn">@raikucom</a>
+                <a href="https://raiku.com" target="_blank" style="color: #fff; text-decoration: none; margin: 0 1rem;" class="btn">raiku.com</a>
+            </div>
+
+            <p class="pixel-font" style="font-size: 0.8rem; color: var(--neon-green);">
+                > The future: predictable blockspace for everyone_<span class="blink">|</span>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // --- GSAP ANIMATIONS ---
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Intro Loading Bar
+        gsap.to(".loading-bar", {
+            width: "100%",
+            duration: 2,
+            ease: "steps(10)",
+            onComplete: () => {
+                document.getElementById('load-text').innerText = "BLOCKSPACE RESERVED.";
+            }
+        });
+
+        // Fade Ins
+        gsap.utils.toArray('section').forEach(section => {
+            gsap.from(section.children, {
+                scrollTrigger: {
+                    trigger: section,
+                    start: "top 80%",
+                },
+                y: 50,
+                opacity: 0,
+                duration: 1,
+                stagger: 0.2,
+                ease: "power3.out"
+            });
+        });
+
+        // Diagram Animation
+        gsap.from(".diagram-step", {
+            scrollTrigger: {
+                trigger: ".raiku-diagram",
+                start: "top 70%",
+            },
+            x: -50,
+            opacity: 0,
+            duration: 0.8,
+            stagger: 0.5,
+            ease: "back.out(1.7)"
+        });
+
+        // --- DEMO 1 LOGIC (Spam vs Raiku) ---
+        const simContainer = document.getElementById('spam-sim');
+        const statsEl = document.getElementById('sim-stats');
+        let simMode = 'spam';
+        let simInterval;
+
+        function createDot(type) {
+            const dot = document.createElement('div');
+            dot.className = 'sim-dot';
+            
+            if (type === 'spam') {
+                dot.style.backgroundColor = 'red';
+                dot.style.left = Math.random() * 95 + '%';
+                dot.style.top = '-10px';
+                dot.style.transition = `top ${Math.random() * 1 + 0.5}s linear`;
+            } else {
+                dot.style.backgroundColor = 'var(--neon-blue)';
+                dot.style.boxShadow = '0 0 5px var(--neon-blue)';
+                dot.style.width = '20px'; // bigger block
+                dot.style.height = '20px';
+                dot.style.left = '48%';
+                dot.style.top = '-20px';
+                dot.style.transition = 'top 1s linear';
+            }
+
+            simContainer.appendChild(dot);
+
+            // Animate
+            setTimeout(() => {
+                dot.style.top = '110%';
+            }, 50);
+
+            // Cleanup
+            setTimeout(() => {
+                dot.remove();
+            }, 1500);
+        }
+
+        function runSim() {
+            clearInterval(simInterval);
+            simContainer.innerHTML = ''; // clear
+
+            if (simMode === 'spam') {
+                statsEl.innerText = "PACKET LOSS: 45% | CONGESTION: CRITICAL";
+                statsEl.style.color = "red";
+                simInterval = setInterval(() => {
+                    for(let i=0; i<5; i++) createDot('spam');
+                }, 100);
+            } else {
+                statsEl.innerText = "PACKET LOSS: 0% | FLOW: DETERMINISTIC";
+                statsEl.style.color = "var(--neon-blue)";
+                simInterval = setInterval(() => {
+                    createDot('raiku');
+                }, 600); // Steady beat
+            }
+        }
+
+        document.getElementById('btn-spam').addEventListener('click', () => {
+            simMode = 'spam';
+            runSim();
+        });
+
+        document.getElementById('btn-raiku').addEventListener('click', () => {
+            simMode = 'raiku';
+            runSim();
+        });
+
+        // Start Default
+        runSim();
+
+
+        // --- DEMO 2 LOGIC (Ticket) ---
+        document.getElementById('btn-ticket').addEventListener('click', () => {
+            const slot = document.getElementById('slot-select').value;
+            const ticket = document.getElementById('ticket-out');
+            document.getElementById('ticket-slot').innerText = slot;
+            
+            // Reset animation
+            ticket.style.display = 'none';
+            void ticket.offsetWidth; // trigger reflow
+            ticket.style.display = 'block';
+        });
+
+        // --- DEMO 3 LOGIC (Path Viz) ---
+        function runMevSim(type) {
+            const pkgMev = document.getElementById('pkg-mev');
+            const pkgRaiku = document.getElementById('pkg-raiku');
+            const status = document.getElementById('path-status');
+            const nodeRaiku = document.getElementById('node-raiku');
+
+            // Reset
+            gsap.killTweensOf([pkgMev, pkgRaiku]);
+            pkgMev.style.display = 'none';
+            pkgRaiku.style.display = 'none';
+            nodeRaiku.style.opacity = type === 'raiku' ? 1 : 0;
+
+            if (type === 'mev') {
+                status.innerText = "STATUS: SEARCHER BOT DETECTED -> BUNDLING -> DELAYED";
+                status.style.color = "red";
+                pkgMev.style.display = 'block';
+                
+                // Erratic path
+                const tl = gsap.timeline();
+                tl.set(pkgMev, {left: '8%', top: '45%'});
+                tl.to(pkgMev, {left: '30%', top: '20%', duration: 0.5}); // To Searcher
+                tl.to(pkgMev, {left: '32%', top: '22%', duration: 0.1, yoyo: true, repeat: 3}); // Jitter
+                tl.to(pkgMev, {left: '50%', top: '60%', duration: 0.5}); // To Builder
+                tl.to(pkgMev, {scale: 1.5, duration: 0.2, yoyo: true, repeat: 1}); // Bundling
+                tl.to(pkgMev, {left: '92%', top: '45%', duration: 0.6}); // To Val
+            } else {
+                status.innerText = "STATUS: RESERVED LANE -> DIRECT INCLUSION";
+                status.style.color = "var(--neon-blue)";
+                pkgRaiku.style.display = 'block';
+
+                const tl = gsap.timeline();
+                tl.set(pkgRaiku, {left: '8%', top: '45%'});
+                tl.to(pkgRaiku, {left: '40%', top: '45%', duration: 0.4}); // To Raiku
+                tl.to(pkgRaiku, {boxShadow: "0 0 20px var(--neon-green)", duration: 0.2}); // Authorization
+                tl.to(pkgRaiku, {left: '92%', top: '45%', duration: 0.4, ease: "power1.in"}); // To Val
+            }
+        }
+
+    </script>
+</body>
+</html>
 
